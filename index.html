@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简易音乐播放器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        dark: '#1E293B',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .progress-bar {
+                height: 4px;
+                background: #CBD5E1;
+                border-radius: 2px;
+            }
+            .progress-fill {
+                height: 100%;
+                background: #3B82F6;
+                width: 0%;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-3xl">
+        <!-- 标题区域 -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-dark">简易音乐播放器</h1>
+            <p class="text-gray-500 mt-2">在GitHub上托管的在线音乐</p>
+        </header>
+        
+        <!-- 专辑封面 -->
+        <div class="flex justify-center mb-8">
+            <div class="relative w-64 h-64 md:w-80 md:h-80 rounded-lg overflow-hidden shadow-lg">
+                <img src="https://picsum.photos/id/1074/400/400" alt="专辑封面" class="w-full h-full object-cover" id="albumCover">
+                <div class="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <button id="bigPlayBtn" class="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center">
+                        <i class="fa fa-play text-2xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 当前播放信息 -->
+        <div class="text-center mb-6">
+            <h2 class="text-xl font-bold text-dark" id="currentTitle">未播放音乐</h2>
+            <p class="text-gray-500" id="currentArtist">未知艺术家</p>
+        </div>
+        
+        <!-- 进度条 -->
+        <div class="mb-6">
+            <div class="flex justify-between text-sm text-gray-500 mb-2">
+                <span id="currentTime">0:00</span>
+                <span id="totalTime">0:00</span>
+            </div>
+            <div class="progress-bar cursor-pointer" id="progressBar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+        
+        <!-- 控制按钮 -->
+        <div class="flex justify-center items-center space-x-6 md:space-x-8 mb-10">
+            <button id="prevBtn" class="text-gray-600 hover:text-primary transition-colors">
+                <i class="fa fa-step-backward text-2xl"></i>
+            </button>
+            <button id="playPauseBtn" class="w-14 h-14 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors">
+                <i class="fa fa-play text-xl"></i>
+            </button>
+            <button id="nextBtn" class="text-gray-600 hover:text-primary transition-colors">
+                <i class="fa fa-step-forward text-2xl"></i>
+            </button>
+        </div>
+        
+        <!-- 音量控制 -->
+        <div class="flex items-center justify-center space-x-4 mb-12">
+            <button id="muteBtn" class="text-gray-600 hover:text-primary transition-colors">
+                <i class="fa fa-volume-up"></i>
+            </button>
+            <input type="range" min="0" max="100" value="80" class="w-32 md:w-48" id="volumeSlider">
+        </div>
+        
+        <!-- 歌曲列表 -->
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+            <h3 class="text-lg font-semibold px-6 py-4 border-b border-gray-100">歌曲列表</h3>
+            <ul id="songList" class="divide-y">
+                <!-- 歌曲将通过JS动态生成 -->
+            </ul>
+        </div>
+    </div>
+    
+    <!-- 音频元素 -->
+    <audio id="audioPlayer" preload="metadata">
+        您的浏览器不支持音频播放
+    </audio>
+
+    <script>
+        // 音乐数据 - 放在项目的music文件夹中
+        const musicList = [
+            {
+                id: 1,
+                title: "清晨的阳光",
+                artist: "自然之声",
+                duration: "3:45",
+                durationSeconds: 225,
+                cover: "https://picsum.photos/id/1019/300/300",
+                src: "music/morning-light.mp3"
+            },
+            {
+                id: 2,
+                title: "城市节奏",
+                artist: "都市旋律",
+                duration: "4:12",
+                durationSeconds: 252,
+                cover: "https://picsum.photos/id/1039/300/300",
+                src: "music/urban-rhythm.mp3"
+            },
+            {
+                id: 3,
+                title: "钢琴低语",
+                artist: "古典梦境",
+                duration: "5:03",
+                durationSeconds: 303,
+                cover: "https://picsum.photos/id/1040/300/300",
+                src: "music/piano-whispers.mp3"
+            },
+            {
+                id: 4,
+                title: "森林私语",
+                artist: "自然之声",
+                duration: "6:20",
+                durationSeconds: 380,
+                cover: "https://picsum.photos/id/1059/300/300",
+                src: "music/forest-murmurs.mp3"
+            }
+        ];
+
+        // DOM元素
+        const audioPlayer = document.getElementById('audioPlayer');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const bigPlayBtn = document.getElementById('bigPlayBtn');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+        const currentTimeEl = document.getElementById('currentTime');
+        const totalTimeEl = document.getElementById('totalTime');
+        const currentTitle = document.getElementById('currentTitle');
+        const currentArtist = document.getElementById('currentArtist');
+        const albumCover = document.getElementById('albumCover');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const muteBtn = document.getElementById('muteBtn');
+        const songList = document.getElementById('songList');
+        
+        // 当前播放索引
+        let currentIndex = -1;
+        
+        // 初始化歌曲列表
+        function initSongList() {
+            musicList.forEach((song, index) => {
+                const li = document.createElement('li');
+                li.className = 'px-6 py-3 hover:bg-gray-50 transition-colors flex justify-between items-center cursor-pointer';
+                li.innerHTML = `
+                    <div>
+                        <div class="font-medium">${song.title}</div>
+                        <div class="text-sm text-gray-500">${song.artist}</div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <span class="text-sm text-gray-500">${song.duration}</span>
+                        <button class="play-btn text-gray-400 hover:text-primary transition-colors">
+                            <i class="fa fa-play"></i>
+                        </button>
+                    </div>
+                `;
+                
+                // 点击整个列表项播放歌曲
+                li.addEventListener('click', () => playSong(index));
+                songList.appendChild(li);
+            });
+        }
+        
+        // 播放指定歌曲
+        function playSong(index) {
+            if (index === currentIndex) {
+                togglePlayPause();
+                return;
+            }
+            
+            currentIndex = index;
+            const song = musicList[index];
+            
+            // 更新歌曲信息
+            currentTitle.textContent = song.title;
+            currentArtist.textContent = song.artist;
+            albumCover.src = song.cover;
+            totalTimeEl.textContent = song.duration;
+            
+            // 加载并播放歌曲
+            audioPlayer.src = song.src;
+            audioPlayer.load();
+            audioPlayer.play();
+            
+            // 更新播放按钮状态
+            updatePlayButtonState();
+            
+            // 高亮当前播放歌曲
+            highlightCurrentSong();
+        }
+        
+        // 切换播放/暂停
+        function togglePlayPause() {
+            if (audioPlayer.paused) {
+                audioPlayer.play();
+            } else {
+                audioPlayer.pause();
+            }
+            updatePlayButtonState();
+        }
+        
+        // 更新播放按钮状态
+        function updatePlayButtonState() {
+            const isPlaying = !audioPlayer.paused;
+            playPauseBtn.innerHTML = isPlaying ? 
+                '<i class="fa fa-pause text-xl"></i>' : 
+                '<i class="fa fa-play text-xl"></i>';
+            
+            bigPlayBtn.innerHTML = isPlaying ? 
+                '<i class="fa fa-pause text-2xl"></i>' : 
+                '<i class="fa fa-play text-2xl"></i>';
+        }
+        
+        // 更新进度条
+        function updateProgress() {
+            if (isNaN(audioPlayer.duration)) return;
+            
+            const percent = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+            progressFill.style.width = `${percent}%`;
+            
+            // 更新当前时间显示
+            const minutes = Math.floor(audioPlayer.currentTime / 60);
+            const seconds = Math.floor(audioPlayer.currentTime % 60);
+            currentTimeEl.textContent = `${minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
+        }
+        
+        // 跳转到指定进度
+        function seekTo(e) {
+            const rect = progressBar.getBoundingClientRect();
+            const pos = (e.clientX - rect.left) / rect.width;
+            audioPlayer.currentTime = pos * audioPlayer.duration;
+        }
+        
+        // 调整音量
+        function adjustVolume() {
+            audioPlayer.volume = volumeSlider.value / 100;
+            updateVolumeIcon();
+        }
+        
+        // 切换静音
+        function toggleMute() {
+            audioPlayer.muted = !audioPlayer.muted;
+            updateVolumeIcon();
+        }
+        
+        // 更新音量图标
+        function updateVolumeIcon() {
+            if (audioPlayer.muted) {
+                muteBtn.innerHTML = '<i class="fa fa-volume-off"></i>';
+            } else if (audioPlayer.volume < 0.5) {
+                muteBtn.innerHTML = '<i class="fa fa-volume-down"></i>';
+            } else {
+                muteBtn.innerHTML = '<i class="fa fa-volume-up"></i>';
+            }
+        }
+        
+        // 播放下一首
+        function playNext() {
+            if (currentIndex >= musicList.length - 1) {
+                currentIndex = 0; // 循环到第一首
+            } else {
+                currentIndex++;
+            }
+            playSong(currentIndex);
+        }
+        
+        // 播放上一首
+        function playPrev() {
+            if (currentIndex <= 0) {
+                currentIndex = musicList.length - 1; // 循环到最后一首
+            } else {
+                currentIndex--;
+            }
+            playSong(currentIndex);
+        }
+        
+        // 高亮当前播放歌曲
+        function highlightCurrentSong() {
+            const items = songList.querySelectorAll('li');
+            items.forEach((item, index) => {
+                if (index === currentIndex) {
+                    item.classList.add('bg-primary/10');
+                    item.querySelector('.play-btn i').className = 'fa fa-pause';
+                } else {
+                    item.classList.remove('bg-primary/10');
+                    item.querySelector('.play-btn i').className = 'fa fa-play';
+                }
+            });
+        }
+        
+        // 事件监听
+        document.addEventListener('DOMContentLoaded', () => {
+            initSongList();
+            
+            // 播放控制
+            playPauseBtn.addEventListener('click', togglePlayPause);
+            bigPlayBtn.addEventListener('click', togglePlayPause);
+            prevBtn.addEventListener('click', playPrev);
+            nextBtn.addEventListener('click', playNext);
+            
+            // 进度控制
+            audioPlayer.addEventListener('timeupdate', updateProgress);
+            progressBar.addEventListener('click', seekTo);
+            
+            // 音量控制
+            volumeSlider.addEventListener('input', adjustVolume);
+            muteBtn.addEventListener('click', toggleMute);
+            
+            // 播放结束自动下一首
+            audioPlayer.addEventListener('ended', playNext);
+            
+            // 默认播放第一首
+            if (musicList.length > 0) {
+                playSong(0);
+                audioPlayer.pause(); // 初始状态为暂停
+                updatePlayButtonState();
+            }
+        });
+    </script>
+</body>
+</html>
+    
